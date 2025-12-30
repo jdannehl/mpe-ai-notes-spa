@@ -116,13 +116,13 @@
   <div class="status muted" id="status"></div>
 
 <script type="module">
-  // =========================
-  // CONFIG (set these)
-  // =========================
-  // Your Function App base URL (no trailing slash), example:
-  // https://mpe-ai-notes-api-xxxxx.centralus-01.azurewebsites.net
-  const API_BASE = "mpe-ai-notes-api-hndyczhncaaugvh2.centralus-01.azurewebsites.net";
-  const NOTES_PATH = "/api/notes-generate";
+ // =========================
+// CONFIG (set these)
+// =========================
+// IMPORTANT: When hosted in Azure Static Web Apps, call the API via the SWA proxy:
+const API_BASE = "";                 // same-origin
+const NOTES_PATH = "/api/notes/generate";  // matches your function.json route: "notes/generate"
+
 
   // =========================
   // SPEECH-TO-TEXT
