@@ -1,1 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MPE AI Notes</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 20px; max-width: 980px; }
+    h1 { font-size: 22px; margin: 0 0 12px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .full { grid-column: 1 / -1; }
+    label { display:block; font-weight: 600; margin: 6px 0; }
+    input, textarea { width:100%; padding:10px; border:1px solid #ccc; border-radius:8px; font-size: 14px; }
+    textarea { min-height: 90px; resize: vertical; }
+    .row { display:flex; gap:8px; align-items:center; }
+    button { padding:10px 12px; border:1px solid #222; background:#111; color:#fff; border-radius:10px; cursor:pointer; }
+    button.secondary { background:#fff; color:#111; }
+    button.small { padding:8px 10px; border-radius:10px; font-size: 13px; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .noteBox { white-space: pre-wrap; background:#0b0b0b; color:#eaeaea; padding:12px; border-radius:10px; min-height: 180px; border:1px solid #222; }
+    .muted { color:#666; font-size: 13px; }
+    .status { font-size: 13px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>MPE AI Notes</h1>
+  <div class="muted">Dictate into any field (Chrome/Edge). Generate a Vision-safe note.</div>
 
+  <div style="margin:14px 0" class="row">
+    <button id="btnLogin" class="secondary">Sign in</button>
+    <div class="muted" id="whoami">Not signed in</div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <label>Work Order #</label>
+      <input id="workOrderNumber" placeholder="Optional" />
+    </div>
+    <div>
+      <label>Site Name</label>
+      <input id="siteName" placeholder="Required" />
+    </div>
+
+    <div class="full">
+      <label>Equipment</label>
+      <div class="row">
+        <input id="equipment" placeholder="Required" />
+        <button class="small secondary" data-dictate="equipment">🎙️ Dictate</button>
+      </div>
+    </div>
+
+    <div class="full">
+      <label>Issue Reported</label>
+      <div class="row">
+        <textarea id="issueReported" placeholder="Required"></textarea>
+        <button class="small secondary" data-dictate="issueReported">🎙️ Dictate</button>
+      </div>
+    </div>
+
+    <div class="full">
+      <label>Diagnosis</label>
+      <div class="row">
+        <textarea id="diagnosis" placeholder="Required"></textarea>
+        <button class="small secondary" data-dictate="diagnosis">🎙️ Dictate</button>
+      </div>
+    </div>
+
+    <div class="full">
+      <label>Work Performed</label>
+      <div class="row">
+        <textarea id="workPerformed" placeholder="Required"></textarea>
+        <button class="small secondary" data-dictate="workPerformed">🎙️ Dictate</button>
+      </div>
+    </div>
+
+    <div class="full">
+      <label>Parts Used</label>
+      <div class="row">
+        <textarea id="partsUsed" placeholder="Optional"></textarea>
+        <button class="small secondary" data-dictate="partsUsed">🎙️ Dictate</button>
+      </div>
+    </div>
+
+    <div class="full">
+      <label>Tests / Results</label>
+      <div class="row">
+        <textarea id="testResults" placeholder="Optional"></textarea>
+        <button class="small secondary" data-dictate="testResults">🎙️ Dictate</button>
+      </div>
+    </div>
+
+    <div class="full">
+      <label>Recommendations</label>
+      <div class="row">
+        <textarea id="recommendations" placeholder="Optional"></textarea>
+        <button class="small secondary" data-dictate="recommendations">🎙️ Dictate</button>
+      </div>
+    </div>
+
+    <div class="full">
+      <label>Additional Notes</label>
+      <div class="row">
+        <textarea id="freeText" placeholder="Optional"></textarea>
+        <button class="small secondary" data-dictate="freeText">🎙️ Dictate</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin:14px 0" class="row">
+    <button id="btnGenerate">Generate Note</button>
+    <button id="btnCopy" class="secondary" disabled>Copy Note</button>
+    <button id="btnClear" class="secondary">Clear</button>
+  </div>
+
+  <div class="noteBox" id="noteOut">(note will appear here)</div>
+  <div class="status muted" id="status"></div>
+
+<script type="module">
+  // =========================
+  // CONFIG (set these)
+  // =========================
+  // Your Function App base URL (no trailing slash), example:
+  // https://mpe-ai-notes-api-xxxxx.centralus-01.azurewebsites.net
+  const API_BASE = "mpe-ai-notes-api-hndyczhncaaugvh2.centralus-01.azurewebsites.net";
+  const NOTES_PATH = "/api/notes-generate";
+
+  // =========================
+  // SPEECH-TO-TEXT
+  // =========================
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const canDictate = !!SpeechRecognition;
+
+  function startDictation(targetId) {
+    if (!canDictate) {
+      alert("Speech-to-text not supported in this browser. Use Chrome/Edge.");
+      return;
+    }
+    const el = document.getElementById(targetId);
+    const rec = new SpeechRecognition();
+    rec.lang = "en-US";
+    rec.interimResults = true;
+    rec.continuous = false;
+
+    let finalText = "";
+    rec.onresult = (e) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += t;
+        else interim += t;
+      }
+      // Append interim to field (non-destructive)
+      el.value = (el.value || "") + (finalText || interim);
+    };
+
+    rec.onerror = (e) => console.log("dictation error", e);
+    rec.start();
+  }
+
+  document.querySelectorAll("[data-dictate]").forEach(btn => {
+    btn.addEventListener("click", () => startDictation(btn.dataset.dictate));
+    if (!canDictate) btn.disabled = true;
+  });
+
+  // =========================
+  // AUTH PLACEHOLDER
+  // =========================
+  // For now, "Sign in" is a placeholder until we wire MSAL.
+  // Your Function currently works in-browser when signed-in due to EasyAuth cookies,
+  // but for a real app we will use MSAL and send a Bearer token.
+  const whoami = document.getElementById("whoami");
+  document.getElementById("btnLogin").addEventListener("click", () => {
+    alert("Next step: wire Entra login with MSAL so this button signs in.");
+  });
+
+  // =========================
+  // GENERATE NOTE
+  // =========================
+  const noteOut = document.getElementById("noteOut");
+  const statusEl = document.getElementById("status");
+  const btnGenerate = document.getElementById("btnGenerate");
+  const btnCopy = document.getElementById("btnCopy");
+
+  function val(id) { return (document.getElementById(id).value || "").trim(); }
+
+  document.getElementById("btnClear").addEventListener("click", () => {
+    ["workOrderNumber","siteName","equipment","issueReported","diagnosis","workPerformed","partsUsed","testResults","recommendations","freeText"]
+      .forEach(id => document.getElementById(id).value = "");
+    noteOut.textContent = "(note will appear here)";
+    btnCopy.disabled = true;
+    statusEl.textContent = "";
+  });
+
+  btnCopy.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(noteOut.textContent);
+    statusEl.textContent = "Copied to clipboard.";
+  });
+
+  btnGenerate.addEventListener("click", async () => {
+    statusEl.textContent = "";
+    btnGenerate.disabled = true;
+    btnCopy.disabled = true;
+    noteOut.textContent = "Generating...";
+
+    const payload = {
+      workOrderNumber: val("workOrderNumber"),
+      siteName: val("siteName"),
+      equipment: val("equipment"),
+      issueReported: val("issueReported"),
+      diagnosis: val("diagnosis"),
+      workPerformed: val("workPerformed"),
+      partsUsed: val("partsUsed"),
+      testResults: val("testResults"),
+      recommendations: val("recommendations"),
+      freeText: val("freeText"),
+    };
+
+    try {
+      const resp = await fetch(API_BASE + NOTES_PATH, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // keeps EasyAuth cookies if present
+        body: JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        const t = await resp.text();
+        throw new Error(`HTTP ${resp.status}: ${t}`);
+      }
+
+      const data = await resp.json();
+      noteOut.textContent = data.note || "(no note returned)";
+      btnCopy.disabled = !(data.note && data.note.length);
+      statusEl.textContent = "Done.";
+    } catch (e) {
+      noteOut.textContent = "Error generating note.";
+      statusEl.textContent = String(e.message || e);
+    } finally {
+      btnGenerate.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
